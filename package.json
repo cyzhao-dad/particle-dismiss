@@ -1,0 +1,72 @@
+{
+  "name": "particle-dismiss",
+  "version": "1.0.0",
+  "description": "关闭对话框、抽屉和提示时，元素化作粒子散去。 / Dissolve dialogs, drawers and toasts into particles as they close.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "zhaochen",
+    "email": "453157936@qq.com"
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cyzhao-dad/particle-dismiss.git"
+  },
+  "homepage": "https://cyzhao-dad.github.io/particle-dismiss/",
+  "bugs": {
+    "url": "https://github.com/cyzhao-dad/particle-dismiss/issues"
+  },
+  "keywords": [
+    "dom",
+    "particle",
+    "peel",
+    "dissolve",
+    "disintegrate",
+    "animation",
+    "dialog",
+    "drawer",
+    "modal",
+    "css-mask",
+    "canvas",
+    "zero-dependency"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "npm run clean && npm run build:types && npm run build:js",
+    "build:types": "tsc -p tsconfig.build.json && node scripts/bundle-dts.mjs",
+    "build:js": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --target=es2022 --minify --legal-comments=none --banner:js='/*! particle-dismiss | Copyright 2026 zhaochen <453157936@qq.com> | Apache-2.0 */'",
+    "dev": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --target=es2022 --watch --banner:js='/*! particle-dismiss | Copyright 2026 zhaochen <453157936@qq.com> | Apache-2.0 */'",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "serve": "node scripts/serve.mjs",
+    "start": "npm run build && npm run serve",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

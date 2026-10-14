@@ -1,0 +1,33 @@
+particle-dismiss
+
+Copyright 2026 zhaochen <453157936@qq.com>
+
+This product is licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+--------------------------------------------------------------------------
+
+再分发时必须保留的声明（Apache-2.0 第 4 条）
+
+任何以源码或目标码形式再分发本作品或其衍生作品，都必须：
+
+1. 随附本 NOTICE 文件的完整内容；
+2. 在源码中保留所有版权、专利、商标与署名声明，不得删除或改写；
+3. 修改过的文件，需在该文件中显著标注「已修改」；
+4. 不得使用本项目名称或作者姓名（zhaochen）为衍生作品背书或进行推广，
+   除非取得作者的书面许可（第 6 条商标条款）。
+
+再分发时请至少保留以下内容：
+
+    particle-dismiss
+    Copyright 2026 zhaochen <453157936@qq.com>
+    Licensed under the Apache License, Version 2.0

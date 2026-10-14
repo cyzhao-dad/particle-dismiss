@@ -1,0 +1,43 @@
+name: Publish
+
+# 通过 npm Trusted Publishing（OIDC）发布，不使用任何长期 token。
+#
+# 一次性前置（必须在包已存在之后，在 npm 网站操作）：
+#   npmjs.com → Packages → particle-dismiss → Settings → Trusted publishing → Add
+#     Organization or user : cyzhao-dad
+#     Repository           : particle-dismiss
+#     Workflow filename    : publish.yml        （只填文件名，需已存在于 .github/workflows/）
+#     Allowed actions      : 勾上 "Allow npm publish"
+#                            （2026-09-03 之后创建的配置默认只允许 npm stage publish）
+#
+# 之后打 tag 即自动发布：git tag v1.0.1 && git push origin v1.0.1
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC 换取短时发布凭据，必需
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Trusted Publishing 要求 Node >= 22.14.0、npm CLI >= 11.5.1
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      # 发布构建不启用依赖缓存（官方建议），故不传 cache 参数
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+
+      - name: Publish to npm
+        run: npm publish

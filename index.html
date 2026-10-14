@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="author" content="zhaochen &lt;453157936@qq.com&gt;">
+<meta name="description" content="particle-dismiss 演示：CSS mask 剥离真实 DOM + 粒子飞散，全部参数可调 / Demo: peel a real DOM element away with a CSS mask and scatter it into particles, every parameter tunable">
+<title>粒子关闭动效 · particle-dismiss</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0c10;
+  --surface:#10141b;
+  --surface-2:#151b24;
+  --line:rgba(255,255,255,.08);
+  --txt:#e8ecf3;
+  --sub:#8b95a6;
+  --dim:#69717f;
+  --accent:#4d8dff;
+  --key:#9fd0ff;
+  --val:#ffd28a;
+  --r-sm:7px;--r:10px;--r-lg:14px;
+}
+html,body{min-height:100%}
+body{
+  background:var(--bg);color:var(--txt);
+  font:14.5px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  padding:30px 20px 56px;
+  background-image:
+    radial-gradient(1000px 560px at 50% -12%,rgba(77,141,255,.10),transparent 70%),
+    radial-gradient(760px 460px at 88% 106%,rgba(130,80,255,.07),transparent 70%);
+  background-attachment:fixed;
+}
+button{font-family:inherit;color:var(--txt);cursor:pointer}
+button:disabled{opacity:.4;cursor:wait}
+code{
+  font:12px ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px;color:var(--key)
+}
+
+/* ----------------------------------------------- 双语文本 · bilingual text */
+
+/* .en   行内次要英文（自带分隔点）; .en-b 独立成行的英文; .p-en 参数名的英文 */
+.en{color:var(--dim);font-weight:400;font-style:normal}
+.en::before{content:"·";margin:0 6px;opacity:.5}
+.en-b{display:block;color:var(--dim);font-weight:400;font-style:normal}
+h1 .en,.block-hd h2 .en,.t-title .en,.motions button strong .en{font-size:.88em}
+.acts button .en,.combos button .en,.dirs button .en{font-size:.86em}
+.tagline .en-b{font-size:12px;margin-top:3px}
+.modal h3 .en-b{font-size:13px;margin-top:3px}
+.modal .desc .en-b{font-size:12.5px;margin-top:4px}
+footer .en-b{font-size:11.5px}
+.p-en{font-size:10.5px;color:var(--dim)}
+
+/* ------------------------------------------------------------------- shell */
+
+.shell{width:min(1180px,100%);margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.site-head{display:flex;flex-direction:column;gap:7px;padding:0 2px}
+.site-head h1{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:19px;font-weight:600;letter-spacing:.4px}
+.site-head h1::before{
+  content:"";width:4px;height:18px;border-radius:2px;flex:none;
+  background:linear-gradient(180deg,var(--accent),#8250ff)
+}
+.tagline{color:var(--sub);font-size:13px}
+.tagline code{font-size:11.5px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.92fr);gap:20px;align-items:start}
+.col-controls{display:flex;flex-direction:column;gap:20px;min-width:0;transition:opacity .2s}
+.col-preview{display:flex;flex-direction:column;gap:14px;min-width:0;position:sticky;top:20px}
+@media (max-width:920px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .col-preview{position:static;order:-1}
+}
+
+/* ------------------------------------------------------------- 区块（外层） */
+
+.block{display:flex;flex-direction:column;gap:10px;min-width:0}
+.block-hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.block-hd h2{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:#d3dae5}
+.block-hd h2::before{
+  content:"";width:3px;height:12px;border-radius:2px;flex:none;
+  background:var(--accent);opacity:.9
+}
+.hd-note{margin-left:auto;font:11.5px ui-monospace,Menlo,monospace;color:var(--dim)}
+
+/* ---------------------------------------------------------- 折叠卡（内层） */
+
+.card{border:1px solid var(--line);border-radius:var(--r);background:rgba(255,255,255,.022)}
+.card>summary{
+  display:flex;align-items:center;gap:10px;padding:11px 13px;
+  list-style:none;cursor:pointer;border-radius:var(--r)
+}
+.card>summary:hover{background:rgba(255,255,255,.032)}
+.card>summary::-webkit-details-marker{display:none}
+.card>summary::after{
+  content:"";flex:none;width:7px;height:7px;margin-left:auto;
+  border-right:1.6px solid var(--sub);border-bottom:1.6px solid var(--sub);
+  transform:rotate(45deg) translate(-1px,-1px);transition:transform .18s
+}
+.card[open]>summary::after{transform:rotate(225deg) translate(-1px,1px)}
+.card-body{display:flex;flex-direction:column;gap:12px;padding:1px 13px 13px}
+.t-title{font-size:13px;font-weight:600;color:#d3dae5}
+.t-note{font:11.5px ui-monospace,Menlo,monospace;color:var(--dim)}
+
+/* ------------------------------------------------------------ 按钮组：预设 */
+
+.motions{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:8px}
+.motions button{
+  display:flex;flex-direction:column;gap:1px;align-items:flex-start;text-align:left;
+  padding:9px 11px;border-radius:var(--r);border:1px solid var(--line);
+  background:var(--surface-2);transition:border-color .15s,background .15s
+}
+.motions button strong{font-size:13px;font-weight:600}
+.motions button span{font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
+.motions button:hover{border-color:rgba(77,141,255,.5);background:#1b2331}
+.motions button[aria-pressed=true]{
+  border-color:rgba(77,141,255,.7);background:rgba(77,141,255,.13);
+  box-shadow:inset 0 0 0 1px rgba(77,141,255,.25)
+}
+.motions button[aria-pressed=true] span{color:var(--key)}
+
+.dirs{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.dirs button{
+  display:flex;align-items:baseline;justify-content:space-between;gap:6px;
+  padding:7px 10px;border-radius:var(--r-sm);border:1px solid var(--line);
+  background:var(--surface-2);color:var(--sub);transition:border-color .15s,background .15s
+}
+.dirs button b{font-size:12.5px;font-weight:600;color:var(--txt);white-space:nowrap}
+.dirs button span{font:10.5px ui-monospace,Menlo,monospace;color:var(--dim)}
+.dirs button:hover{border-color:rgba(77,141,255,.5)}
+.dirs button[aria-pressed=true]{background:rgba(77,141,255,.15);border-color:rgba(77,141,255,.6)}
+.dirs button[aria-pressed=true] b,.dirs button[aria-pressed=true] span{color:var(--key)}
+
+.combos{display:flex;flex-wrap:wrap;gap:6px}
+.combos button{
+  font-size:12.5px;padding:6px 15px;border-radius:999px;
+  border:1px solid var(--line);background:var(--surface-2);
+  transition:border-color .15s,background .15s
+}
+.combos button:hover{border-color:rgba(77,141,255,.55)}
+.combos button[aria-pressed=true]{
+  background:rgba(77,141,255,.18);border-color:rgba(77,141,255,.6);color:var(--key)
+}
+
+/* ----------------------------------------------------------------- 操作行 */
+
+.acts{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.acts button{
+  font-size:12.5px;padding:7px 13px;border-radius:var(--r-sm);
+  border:1px solid var(--line);background:rgba(255,255,255,.05);
+  transition:border-color .15s,background .15s
+}
+.acts button:hover{border-color:rgba(77,141,255,.5);background:rgba(255,255,255,.08)}
+.acts .spacer{flex:1}
+.switch{
+  display:inline-flex;align-items:center;gap:7px;font-size:12.5px;
+  color:#c3cbd8;cursor:pointer;user-select:none
+}
+.switch input{
+  appearance:none;-webkit-appearance:none;flex:none;
+  width:32px;height:18px;border-radius:999px;border:none;position:relative;
+  background:rgba(255,255,255,.14);cursor:pointer;transition:background .18s
+}
+.switch input::after{
+  content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;
+  border-radius:50%;background:#fff;transition:transform .18s
+}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(14px)}
+.switch input:disabled{opacity:.45;cursor:wait}
+
+/* ------------------------------------------------------------- 参数（滑块） */
+
+.params{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:15px 16px}
+.p{display:flex;flex-direction:column;gap:6px;min-width:0}
+.p-head{display:flex;flex-direction:column;gap:1px;min-width:0}
+.p-top{display:flex;align-items:baseline;gap:7px;font-size:12.5px;color:#c3cbd8;min-width:0;cursor:pointer}
+.p-top .k{
+  flex:none;font:11px ui-monospace,Menlo,monospace;color:var(--key);
+  background:rgba(77,141,255,.13);padding:2px 6px;border-radius:5px
+}
+.p-top .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-top .v{
+  margin-left:auto;flex:none;font:12px ui-monospace,Menlo,monospace;color:var(--val);
+  font-variant-numeric:tabular-nums
+}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chips button{
+  font:10.5px ui-monospace,Menlo,monospace;padding:2px 7px;border-radius:5px;
+  border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--sub)
+}
+.chips button:hover{color:var(--txt);border-color:rgba(77,141,255,.5)}
+.chips button[aria-pressed=true]{
+  background:rgba(77,141,255,.2);border-color:rgba(77,141,255,.55);color:var(--key)
+}
+.note{font-size:11px;color:var(--dim)}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent) var(--fill,50%),rgba(255,255,255,.12) var(--fill,50%));
+  cursor:pointer;outline:none
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;
+  background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.4)
+}
+input[type=range]::-moz-range-thumb{
+  width:15px;height:15px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer
+}
+input[type=range]:disabled{opacity:.45;cursor:wait}
+
+/* ------------------------------------------------------------------- 预览 */
+
+.preview{
+  border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.012))
+}
+.preview-hd{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.preview-hd h2{font-size:13.5px;font-weight:600;color:#d3dae5}
+.pill{
+  margin-left:auto;font:11px ui-monospace,Menlo,monospace;color:var(--key);
+  background:rgba(77,141,255,.13);padding:2px 9px;border-radius:999px
+}
+.preview-stage{
+  position:relative;display:grid;place-items:center;
+  min-height:300px;padding:26px 20px;
+  background:
+    radial-gradient(440px 240px at 50% 42%,rgba(77,141,255,.11),transparent 72%),
+    linear-gradient(180deg,#0b0e13,#080a0e)
+}
+.preview-stage::before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+  background-size:22px 22px;
+  -webkit-mask-image:radial-gradient(380px 220px at 50% 46%,#000,transparent 78%);
+  mask-image:radial-gradient(380px 220px at 50% 46%,#000,transparent 78%)
+}
+.preview-stage>.modal{position:relative;z-index:1}
+.preview-ft{
+  display:flex;flex-direction:column;gap:10px;
+  padding:12px 14px 14px;border-top:1px solid var(--line)
+}
+.status{
+  font:11.5px ui-monospace,Menlo,monospace;color:var(--dim);
+  min-height:1.4em;overflow-wrap:anywhere
+}
+.status em{color:var(--key);font-style:normal}
+body.playing .col-controls{opacity:.5}
+
+.modal{
+  width:min(380px,100%);
+  background:linear-gradient(160deg,#1d2430,#141920);
+  border:1px solid rgba(255,255,255,.12);border-radius:var(--r-lg);
+  padding:22px 22px 18px;
+  box-shadow:0 18px 44px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05)
+}
+.modal h3{font-size:16.5px;font-weight:600}
+.modal .desc{margin-top:9px;color:var(--sub);font-size:13.5px}
+.modal .acts{justify-content:flex-end;margin-top:20px}
+.modal .acts button{font-size:13px;padding:8px 17px;border-radius:8px}
+.modal .acts button.pri{background:var(--accent);border-color:transparent;color:#fff}
+
+/* ------------------------------------------------------------- 代码 / 页脚 */
+
+pre.cfg{
+  margin:0;max-height:240px;overflow:auto;white-space:pre;tab-size:2;
+  font:11.5px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:#cfe0ff;background:rgba(0,0,0,.32);
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 12px
+}
+footer{display:flex;flex-direction:column;gap:5px;padding-top:4px;text-align:center;font-size:12px;color:var(--dim)}
+footer code{font-size:11.5px}
+footer a{color:#8b95a6;text-decoration:none;border-bottom:1px solid rgba(139,149,166,.35)}
+footer a:hover{color:var(--key);border-bottom-color:rgba(77,141,255,.6)}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="site-head">
+    <h1>粒子关闭动效<span class="en">Particle peel-away</span></h1>
+    <p class="tagline">
+      <code>particle-dismiss</code> · 关闭对话框、抽屉和提示时，元素化作粒子散去 · 改任一参数即刻重播
+      <span class="en-b"><code>particle-dismiss</code> · dissolve dialogs, drawers and toasts into particles as they close · every tweak replays instantly</span>
+    </p>
+  </header>
+
+  <div class="layout">
+
+    <main class="col-controls">
+
+      <section class="block">
+        <div class="block-hd">
+          <h2>运动预设<span class="en">Motion presets</span></h2>
+          <span class="hd-note" id="motionNow"></span>
+        </div>
+        <div class="motions" id="motions"></div>
+      </section>
+
+      <section class="block">
+        <div class="block-hd">
+          <h2>剥离方向<span class="en">Peel direction</span></h2>
+          <span class="hd-note" id="dirNow"></span>
+        </div>
+        <div class="dirs" id="dirButtons"></div>
+      </section>
+
+      <section class="block">
+        <div class="block-hd">
+          <h2>整组参数<span class="en">Parameter combos</span></h2>
+          <span class="hd-note">一键套用并立即播放<span class="en">apply &amp; play at once</span></span>
+        </div>
+        <div class="combos" id="comboPresets"></div>
+        <div class="acts">
+          <label class="switch">
+            <input type="checkbox" id="autoReplay" checked>
+            <span>拖滑块松手后自动重播<span class="en">auto-replay on slider release</span></span>
+          </label>
+          <span class="spacer"></span>
+          <button type="button" id="resetAll">全部重置<span class="en">Reset all</span></button>
+          <button type="button" id="copyCfg">复制配置<span class="en">Copy</span></button>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="block-hd">
+          <h2>细调参数<span class="en">Fine tuning</span></h2>
+          <span class="hd-note">25 项 · 点标题展开<span class="en">25 params · click a title</span></span>
+        </div>
+        <div id="groups"></div>
+      </section>
+
+    </main>
+
+    <aside class="col-preview">
+
+      <div class="preview">
+        <div class="preview-hd">
+          <h2>预览<span class="en">Preview</span></h2>
+          <span class="pill" id="motionTag">motion: random</span>
+        </div>
+
+        <div class="preview-stage" id="stage">
+          <div class="modal" id="modal">
+            <h3>确认删除该项目？<span class="en-b">Delete this item?</span></h3>
+            <p class="desc">
+              删除后不可撤销。关闭时使用当前选中的运动预设与参数。
+              <span class="en-b">This cannot be undone. Closing uses the motion preset and parameters selected on the left.</span>
+            </p>
+            <div class="acts">
+              <button type="button" data-close>取消<span class="en">Cancel</span></button>
+              <button type="button" class="pri" data-close>确认删除<span class="en">Delete</span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-ft">
+          <div class="acts">
+            <button type="button" id="replayBtn">重播<span class="en">Replay</span></button>
+            <span class="spacer"></span>
+            <button type="button" id="randDirBtn">随机方向<span class="en">Random dir</span></button>
+          </div>
+          <p class="status" id="status">就绪 · 点任一预设或「重播」开始<span class="en">Ready · pick a preset or hit Replay</span></p>
+        </div>
+      </div>
+
+      <details class="card">
+        <summary>
+          <span class="t-title">当前配置<span class="en">Current config</span></span>
+          <span class="t-note">只列出与默认值不同的项<span class="en">non-defaults only</span></span>
+        </summary>
+        <div class="card-body">
+          <pre class="cfg" id="cfgOut"></pre>
+          <div class="acts">
+            <button type="button" id="copyCfg2">复制这段代码<span class="en">Copy snippet</span></button>
+            <span class="spacer"></span>
+            <span class="t-note">粘进 closer.close(el, {...}) 即可<span class="en">paste into closer.close(el, {...})</span></span>
+          </div>
+        </div>
+      </details>
+
+    </aside>
+  </div>
+
+  <footer>
+    <p>用法 · <code>import { createPeelCloser } from "particle-dismiss"</code></p>
+    <p>需 HTTP 打开（<code>npm run serve</code>）· 详见 <code>README.md</code></p>
+    <p class="en-b">Usage · serve over HTTP (<code>npm run serve</code>) · see <code>README.md</code></p>
+    <p>particle-dismiss · Apache-2.0 · © 2026 <a href="mailto:453157936@qq.com">zhaochen</a></p>
+  </footer>
+
+</div>
+
+<script type="module">
+import {
+  createPeelCloser,
+  cancelAllPeels,
+  PEEL_DEFAULTS,
+  MOTION_PRESETS,
+  listMotions,
+  resolvePeelDirection,
+} from "./dist/index.js";
+
+const $ = (id) => document.getElementById(id);
+const modal = $("modal");
+const statusEl = $("status");
+const motionTag = $("motionTag");
+const motionNowEl = $("motionNow");
+const motionsEl = $("motions");
+const dirButtonsEl = $("dirButtons");
+const dirNow = $("dirNow");
+const groupsEl = $("groups");
+const comboPresetsEl = $("comboPresets");
+const autoReplayEl = $("autoReplay");
+const cfgOut = $("cfgOut");
+const replayBtn = $("replayBtn");
+const randDirBtn = $("randDirBtn");
+
+const closer = createPeelCloser("demo-modal");
+
+/* -------------------------------------------------------------- formatting */
+
+const fmtNum = (v) => Number(v.toFixed(2)).toString();
+const fmtX = (v) => `×${fmtNum(v)}`;
+const fmtMs = (v) => `${Math.round(v)} ms`;
+const fmtK = (v) => `${fmtNum(v / 1000)}k`;
+
+/** English display names for the motion presets (the library labels are Chinese). */
+const MOTION_EN = {
+  random: "Random",
+  drift: "Drift",
+  spiral: "Spiral",
+  scatter: "Scatter",
+  cascade: "Cascade",
+  vortex: "Vortex",
+  ribbon: "Ribbon",
+};
+
+/* ------------------------------------------------------------------ schema */
+
+/**
+ * Every top-level `PeelOptions` field, grouped for the panel.
+ * `def` comes from PEEL_DEFAULTS so the page can never drift from the library.
+ * `en` / `enNote` are the secondary English descriptions.
+ */
+const GROUPS = [
+  {
+    id: "look",
+    title: "外观 · 粒子形态",
+    en: "Appearance",
+    note: "填充率 = 数量 × 面积，调大 size 记得同步降 density",
+    enNote: "count × area sets the fill; raise size → lower density",
+    open: true,
+    params: [
+      {
+        key: "size", label: "粒子尺寸", en: "Particle size",
+        min: 0.5, max: 4, step: 0.05,
+        def: PEEL_DEFAULTS.size, fmt: fmtX, chips: [1, 1.5, 2],
+      },
+      {
+        key: "density", label: "采样密度", en: "Sample density",
+        min: 0.1, max: 1, step: 0.02,
+        def: PEEL_DEFAULTS.density, fmt: fmtNum,
+        note: "保留采样点的概率，越低越省",
+        enNote: "keep-rate of samples; lower is cheaper",
+      },
+      {
+        key: "maxParticles", label: "粒子数上限", en: "Particle cap",
+        min: 4000, max: 96000, step: 2000,
+        def: PEEL_DEFAULTS.maxParticles, fmt: fmtK,
+        note: "超出后随机抽稀",
+        enNote: "random thinning beyond this",
+      },
+      {
+        key: "scale", label: "快照分辨率", en: "Snapshot scale",
+        min: 1, max: 4, step: 0.5,
+        def: PEEL_DEFAULTS.scale, fmt: fmtX,
+        note: "取色精度，越大越慢",
+        enNote: "colour accuracy; higher is slower",
+      },
+    ],
+  },
+  {
+    id: "path",
+    title: "轨迹 · 单粒子",
+    en: "Per-particle path",
+    note: "决定每颗粒子怎么飞",
+    enNote: "how each particle flies",
+    open: true,
+    params: [
+      {
+        key: "spray", label: "喷射速度", en: "Spray speed",
+        min: 0.5, max: 5, step: 0.05,
+        def: PEEL_DEFAULTS.spray, fmt: fmtX, chips: [1.4, 2.15, 3.2, 4.5],
+        note: "飞散距离与初速",
+        enNote: "burst distance and initial speed",
+      },
+      {
+        key: "turbulence", label: "湍流抖动", en: "Turbulence",
+        min: 0, max: 3, step: 0.05,
+        def: PEEL_DEFAULTS.turbulence, fmt: fmtX,
+        note: "飞行中的高频抖动",
+        enNote: "high-frequency jitter in flight",
+      },
+      {
+        key: "bend", label: "弯曲幅度", en: "Gust bend",
+        min: 0, max: 3, step: 0.05,
+        def: PEEL_DEFAULTS.bend, fmt: fmtX,
+        note: "单次阵风的偏移量",
+        enNote: "offset applied per gust",
+      },
+      {
+        key: "morph", label: "拖尾形变", en: "Trail stretch",
+        min: 0, max: 2, step: 0.05,
+        def: PEEL_DEFAULTS.morph, fmt: fmtX,
+        note: "拉伸/挤压强度",
+        enNote: "stretch / squash amount",
+      },
+    ],
+  },
+  {
+    id: "time",
+    title: "节奏 · 时序 (ms)",
+    en: "Timing",
+    note: "所有时长会再被 speed 反向缩放",
+    enNote: "all durations are inverse-scaled by speed",
+    open: false,
+    params: [
+      {
+        key: "speed", label: "整体速度", en: "Global speed",
+        min: 0.25, max: 4, step: 0.05,
+        def: PEEL_DEFAULTS.speed, fmt: fmtX, chips: [0.5, 1, 1.5, 2.5],
+        note: "减速时同步放慢粒子，避免飞离窗体",
+        enNote: "slowing also shortens the flight so particles stay with the window",
+      },
+      {
+        key: "peelMs", label: "剥离波时长", en: "Mask sweep",
+        min: 200, max: 4000, step: 50,
+        def: PEEL_DEFAULTS.peelMs, fmt: fmtMs, chips: [600, 1200, 1800, 3000],
+        note: "mask 波扫过元素的时间",
+        enNote: "time for the mask wave to cross the element",
+      },
+      {
+        key: "lifeMs", label: "粒子寿命", en: "Particle life",
+        min: 200, max: 3000, step: 50,
+        def: PEEL_DEFAULTS.lifeMs, fmt: fmtMs, chips: [500, 900, 1600],
+      },
+      {
+        key: "peelLeadInMs", label: "剥离前停顿", en: "Lead-in pause",
+        min: 0, max: 1000, step: 20,
+        def: PEEL_DEFAULTS.peelLeadInMs, fmt: fmtMs,
+      },
+      {
+        key: "peelTailFadeMs", label: "收尾淡出", en: "Tail fade",
+        min: 0, max: 800, step: 10,
+        def: PEEL_DEFAULTS.peelTailFadeMs, fmt: fmtMs,
+      },
+      {
+        key: "birthJitterMs", label: "出生抖动", en: "Birth jitter",
+        min: 0, max: 400, step: 2,
+        def: PEEL_DEFAULTS.birthJitterMs, fmt: fmtMs,
+        note: "随机错峰，避免同时出现",
+        enNote: "random stagger so they don't all pop at once",
+      },
+      {
+        key: "bottomSweepMs", label: "自下而上偏移", en: "Bottom sweep",
+        min: 0, max: 400, step: 5,
+        def: PEEL_DEFAULTS.bottomSweepMs, fmt: fmtMs,
+      },
+      {
+        key: "peelSpawnScale", label: "常规粒子出生进度", en: "Normal spawn",
+        min: 0, max: 1.5, step: 0.02,
+        def: PEEL_DEFAULTS.peelSpawnScale, fmt: fmtNum,
+      },
+      {
+        key: "paleSpawnScale", label: "浅色粒子出生进度", en: "Pale spawn",
+        min: 0, max: 1.5, step: 0.02,
+        def: PEEL_DEFAULTS.paleSpawnScale, fmt: fmtNum,
+        note: "调小让高光点滞后于波前",
+        enNote: "lower lets highlights lag the wavefront",
+      },
+    ],
+  },
+];
+
+/** Fields of MotionStyle that can be overridden on top of the preset. */
+const STYLE_PARAMS = [
+  { key: "flow", label: "主风向权重", en: "Flow weight", min: 0, max: 2, step: 0.05 },
+  { key: "radial", label: "径向外推", en: "Radial push", min: 0, max: 1.5, step: 0.05 },
+  { key: "spiral", label: "螺旋强度", en: "Spiral", min: 0, max: 2.5, step: 0.05 },
+  { key: "spiralTurns", label: "螺旋圈数", en: "Spiral turns", min: 0, max: 4, step: 0.05 },
+  { key: "sCurve", label: "S 形摆动", en: "S-curve", min: 0, max: 3, step: 0.05 },
+  { key: "gravity", label: "重力下坠", en: "Gravity", min: 0, max: 3, step: 0.05 },
+  { key: "compress", label: "横向挤压", en: "Compress", min: 0, max: 2, step: 0.05 },
+  { key: "spread", label: "方向散射", en: "Scatter", min: 0, max: 1.2, step: 0.02 },
+];
+
+const COMBOS = [
+  { id: "standard", label: "标准", en: "Standard", set: {} },
+  { id: "light", label: "轻灵", en: "Light", set: { size: 1, density: 0.7, spray: 3, lifeMs: 700, turbulence: 1.6, morph: 1.4, peelMs: 1400 } },
+  { id: "heavy", label: "厚重", en: "Heavy", set: { size: 2.6, density: 1, spray: 1.4, peelMs: 2400, lifeMs: 1300, morph: 0.6, turbulence: 0.8 } },
+  { id: "storm", label: "狂风", en: "Storm", set: { speed: 1.8, spray: 4, bend: 2.2, turbulence: 2.2, peelMs: 900, lifeMs: 800 } },
+  { id: "slowmo", label: "慢镜", en: "Slow-mo", set: { speed: 0.4, peelMs: 2600, lifeMs: 1100, morph: 0.7, spray: 1.15 } },
+  { id: "dust", label: "稀疏星尘", en: "Star dust", set: { density: 0.22, size: 1, spray: 3.4, maxParticles: 20000, lifeMs: 1500 } },
+];
+
+const DIRECTIONS = [
+  { v: "auto", t: "自动", e: "auto", s: "225 / 315" },
+  { v: "random", t: "随机", e: "random", s: "reroll" },
+  { v: 180, t: "向左", e: "left", s: "180°" },
+  { v: 225, t: "左上", e: "up-left", s: "225°" },
+  { v: 270, t: "向上", e: "up", s: "270°" },
+  { v: 315, t: "右上", e: "up-right", s: "315°" },
+  { v: 0, t: "向右", e: "right", s: "0°" },
+  { v: 90, t: "向下", e: "down", s: "90°" },
+];
+
+/* ------------------------------------------------------------------- state */
+
+const ALL_PARAMS = GROUPS.flatMap((g) => g.params);
+const META = new Map();
+const inputs = new Map();
+const defs = new Map();
+const allInputs = [];
+
+let pendingMotion = "random";
+let particleDirection = PEEL_DEFAULTS.direction;
+let styleOverride = false;
+let busy = false;
+let queued = false;
+
+const read = (key) => Number(inputs.get(key).value);
+const readStyle = (key) => Number(inputs.get(key).value);
+
+/* ------------------------------------------------------------ slider build */
+
+function buildSlider(body, p, defValue, onCommit) {
+  const wrap = document.createElement("div");
+  wrap.className = "p";
+
+  const head = document.createElement("div");
+  head.className = "p-head";
+
+  const top = document.createElement("label");
+  top.className = "p-top";
+  top.setAttribute("for", `f-${p.key}`);
+  top.innerHTML =
+    `<span class="k">${p.key}</span><span class="t">${p.label}</span><span class="v"></span>`;
+  head.append(top);
+
+  if (p.en) {
+    const en = document.createElement("div");
+    en.className = "p-en";
+    en.textContent = p.en;
+    head.append(en);
+  }
+
+  const input = document.createElement("input");
+  input.type = "range";
+  input.id = `f-${p.key}`;
+  input.min = String(p.min);
+  input.max = String(p.max);
+  input.step = String(p.step);
+
+  const valEl = top.querySelector(".v");
+
+  const paint = () => {
+    const v = Number(input.value);
+    const ratio = (v - p.min) / (p.max - p.min);
+    input.style.setProperty("--fill", `${(ratio * 100).toFixed(1)}%`);
+    valEl.textContent = p.fmt ? p.fmt(v) : fmtNum(v);
+  };
+
+  input.addEventListener("input", () => {
+    paint();
+    renderSnippet();
+  });
+  input.addEventListener("change", onCommit);
+
+  wrap.append(head, input);
+
+  if (p.chips && p.chips.length) {
+    const row = document.createElement("div");
+    row.className = "chips";
+    for (const c of p.chips) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = p.fmt ? p.fmt(c) : fmtNum(c);
+      b.dataset.chip = String(c);
+      b.addEventListener("click", () => {
+        setParam(p.key, c);
+        onCommit();
+      });
+      row.append(b);
+      allInputs.push(b);
+    }
+    wrap.append(row);
+  }
+
+  if (p.note) {
+    const note = document.createElement("div");
+    note.className = "note";
+    note.textContent = p.note;
+    if (p.enNote) {
+      const e = document.createElement("span");
+      e.className = "en";
+      e.textContent = p.enNote;
+      note.append(e);
+    }
+    wrap.append(note);
+  }
+
+  body.append(wrap);
+  inputs.set(p.key, input);
+  defs.set(p.key, defValue);
+  META.set(p.key, { ...p, paint });
+  allInputs.push(input);
+  input.value = String(defValue);
+  paint();
+}
+
+function setParam(key, value) {
+  const input = inputs.get(key);
+  const meta = META.get(key);
+  if (!input || !meta) return;
+  const v = Math.max(meta.min, Math.min(meta.max, Number(value)));
+  input.value = String(v);
+  meta.paint();
+  const row = input.parentElement?.querySelector(".chips");
+  if (row) {
+    row.querySelectorAll("button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(Number(b.dataset.chip) === v));
+    });
+  }
+  renderSnippet();
+}
+
+function buildGroups() {
+  for (const g of GROUPS) {
+    const card = document.createElement("details");
+    card.className = "card";
+    card.dataset.group = g.id;
+    if (g.open) card.open = true;
+
+    const sum = document.createElement("summary");
+    sum.innerHTML =
+      `<span class="t-title">${g.title}<span class="en">${g.en}</span></span>` +
+      `<span class="t-note">${g.note || ""}${g.enNote ? `<span class="en">${g.enNote}</span>` : ""}</span>`;
+    card.append(sum);
+
+    const body = document.createElement("div");
+    body.className = "card-body";
+    const grid = document.createElement("div");
+    grid.className = "params";
+    body.append(grid);
+
+    for (const p of g.params) {
+      buildSlider(grid, p, p.def, () => commitParam());
+    }
+
+    card.append(body);
+    groupsEl.append(card);
+  }
+}
+
+/* ------------------------------------------------- motionStyle override UI */
+
+const overrideCard = document.createElement("details");
+overrideCard.className = "card";
+overrideCard.dataset.group = "style";
+
+function buildOverrideCard() {
+  const sum = document.createElement("summary");
+  sum.innerHTML =
+    `<span class="t-title">预设微调<span class="en">Motion-style overrides</span></span>` +
+    `<span class="t-note">在预设之上逐项覆盖轨迹系数<span class="en">override the coefficients on top of a preset</span></span>`;
+  overrideCard.append(sum);
+
+  const body = document.createElement("div");
+  body.className = "card-body";
+
+  const acts = document.createElement("div");
+  acts.className = "acts";
+  const sw = document.createElement("label");
+  sw.className = "switch";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.id = "overrideOn";
+  const swTxt = document.createElement("span");
+  swTxt.textContent = "启用覆盖";
+  const swEn = document.createElement("span");
+  swEn.className = "en";
+  swEn.textContent = "enable";
+  swTxt.append(swEn);
+  sw.append(cb, swTxt);
+  allInputs.push(cb);
+  const note = document.createElement("span");
+  note.className = "t-note";
+  note.id = "overrideNote";
+  acts.append(sw, note);
+  body.append(acts);
+
+  const grid = document.createElement("div");
+  grid.className = "params";
+
+  for (const p of STYLE_PARAMS) {
+    buildSlider(grid, p, 0, () => commitParam());
+  }
+
+  const reset = document.createElement("div");
+  reset.className = "chips";
+  const rb = document.createElement("button");
+  rb.type = "button";
+  rb.innerHTML = `回到当前预设数值<span class="en">Load preset values</span>`;
+  rb.addEventListener("click", () => {
+    syncStyleFromPreset(true);
+    commitParam();
+  });
+  reset.append(rb);
+  body.append(grid, reset);
+
+  cb.addEventListener("change", () => {
+    styleOverride = cb.checked;
+    if (styleOverride) {
+      syncStyleFromPreset(false);
+      note.textContent =
+        pendingMotion === "random"
+          ? `起点 = ${presetInUseLabel()} 预设 · random 每次换预设，覆盖后固定 / random re-rolls each run, overriding pins it`
+          : `起点 = ${presetInUseLabel()} 预设 / from the ${presetInUseEnLabel()} preset`;
+    } else {
+      note.textContent = "";
+    }
+    renderSnippet();
+    commitParam();
+  });
+
+  overrideCard.append(body);
+  overrideCard.open = false;
+}
+
+function syncStyleFromPreset(force) {
+  const preset = MOTION_PRESETS[pendingMotion] || MOTION_PRESETS.drift;
+  if (!preset) return;
+  for (const p of STYLE_PARAMS) {
+    const target = preset[p.key];
+    if (!styleOverride || force) setParam(p.key, target);
+  }
+  if (styleOverride && force) {
+    const note = $("overrideNote");
+    if (note) {
+      note.textContent =
+        `已同步为 ${presetInUseLabel()} 预设 / synced to ${presetInUseEnLabel()}`;
+    }
+  }
+}
+
+/* --------------------------------------------------------------- behaviour */
+
+const motionLabelMap = new Map();
+for (const { id, label } of listMotions()) motionLabelMap.set(id, label);
+const pendingMotionLabel = () => motionLabelMap.get(pendingMotion) || pendingMotion;
+const pendingMotionEnLabel = () => MOTION_EN[pendingMotion] || pendingMotion;
+
+/** Which preset the coefficient sliders currently read from ("random" → drift). */
+function presetInUse() {
+  return MOTION_PRESETS[pendingMotion] ? pendingMotion : "drift";
+}
+/** Human label for that preset, id included so the source is unambiguous. */
+function presetInUseLabel() {
+  const id = presetInUse();
+  return `${motionLabelMap.get(id) || id}（${id}）`;
+}
+/** English label for the same preset. */
+function presetInUseEnLabel() {
+  const id = presetInUse();
+  return MOTION_EN[id] || id;
+}
+
+function setStatus(html) {
+  statusEl.innerHTML = html;
+}
+
+function setBusy(on) {
+  busy = on;
+  document.body.classList.toggle("playing", on);
+  for (const el of allInputs) el.disabled = on;
+  for (const el of [replayBtn, randDirBtn, $("resetAll"), $("copyCfg"), $("copyCfg2")]) {
+    if (el) el.disabled = on;
+  }
+  motionsEl.querySelectorAll("button").forEach((b) => { b.disabled = on; });
+  dirButtonsEl.querySelectorAll("button").forEach((b) => { b.disabled = on; });
+  comboPresetsEl.querySelectorAll("button").forEach((b) => { b.disabled = on; });
+  autoReplayEl.disabled = on;
+}
+
+function setPendingMotion(id) {
+  pendingMotion = id;
+  motionTag.textContent = `motion: ${id}`;
+  motionNowEl.textContent = `${pendingMotionLabel()} / ${pendingMotionEnLabel()}`;
+  motionsEl.querySelectorAll("button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.motion === id));
+  });
+}
+
+function dirLabel(v) {
+  if (v === "auto") return "auto · 按位置 / by position";
+  if (v === "random") return "random · 每次随机 / reroll";
+  return `${v}°`;
+}
+
+function applyDirection(value) {
+  particleDirection = value;
+  dirNow.textContent = dirLabel(value);
+  dirButtonsEl.querySelectorAll("button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.dir === String(value)));
+  });
+  renderSnippet();
+}
+
+function currentOptions() {
+  const opts = { motion: pendingMotion, direction: particleDirection };
+  for (const p of ALL_PARAMS) opts[p.key] = read(p.key);
+  if (styleOverride) {
+    const style = {};
+    for (const p of STYLE_PARAMS) style[p.key] = readStyle(p.key);
+    opts.motionStyle = style;
+  }
+  return opts;
+}
+
+/** Queue-aware replay: never interrupt a run, just remember the request. */
+function replay() {
+  if (busy) {
+    queued = true;
+    return;
+  }
+  closeWith(pendingMotion).catch(console.error);
+}
+
+/** Slider commits respect the auto-replay switch; one-click actions do not. */
+function commitParam() {
+  renderSnippet();
+  if (!autoReplayEl.checked) {
+    setStatus('参数已更新 · 点「重播」试播<span class="en">Params updated · hit Replay</span>');
+    return;
+  }
+  replay();
+}
+
+/* ----------------------------------------------------------------- snippet */
+
+function renderSnippet() {
+  const lines = [
+    `import { createPeelCloser } from "particle-dismiss";`,
+    ``,
+    `const closer = createPeelCloser("panel");`,
+    ``,
+    `await closer.close(panelEl, {`,
+    `  motion: ${JSON.stringify(pendingMotion)},`,
+  ];
+
+  const changed = ALL_PARAMS.filter((p) => read(p.key) !== defs.get(p.key));
+  for (const p of changed) {
+    lines.push(`  ${p.key}: ${fmtNum(read(p.key))},`);
+  }
+  if (particleDirection !== PEEL_DEFAULTS.direction) {
+    lines.push(
+      `  direction: ${typeof particleDirection === "number" ? particleDirection : JSON.stringify(particleDirection)},`,
+    );
+  }
+  if (styleOverride) {
+    lines.push(`  motionStyle: {`);
+    for (const p of STYLE_PARAMS) lines.push(`    ${p.key}: ${fmtNum(readStyle(p.key))},`);
+    lines.push(`  },`);
+  }
+  lines.push(`  hide: () => { /* 你的隐藏逻辑 / your hide logic */ },`);
+  lines.push(`});`);
+
+  cfgOut.textContent = lines.join("\n");
+}
+
+async function copySnippet() {
+  const text = cfgOut.textContent || "";
+  try {
+    await navigator.clipboard.writeText(text);
+    setStatus('配置已复制到剪贴板<span class="en">Copied to clipboard</span>');
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.append(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      setStatus('配置已复制<span class="en">copied (fallback)</span>');
+    } catch {
+      setStatus('复制失败，请手动选中代码块<span class="en">copy failed — select the code manually</span>');
+    }
+    ta.remove();
+  }
+}
+
+/* ---------------------------------------------------------------- playback */
+
+/**
+ * The closer hides the element when it resolves, and a previous run may have
+ * left mask/visibility chrome behind. Reset both before measuring or replaying.
+ */
+function clearModalChrome() {
+  modal.hidden = false;
+  Object.assign(modal.style, {
+    visibility: "",
+    pointerEvents: "",
+    maskImage: "",
+    webkitMaskImage: "",
+    maskSize: "",
+    webkitMaskSize: "",
+    maskRepeat: "",
+    webkitMaskRepeat: "",
+  });
+}
+
+async function closeWith(motion) {
+  if (busy || closer.isClosing) return;
+  setPendingMotion(motion || "random");
+
+  closer.abort();
+  cancelAllPeels();
+  clearModalChrome();
+
+  setBusy(true);
+  const previewDeg =
+    typeof particleDirection === "number"
+      ? particleDirection
+      : resolvePeelDirection(modal.getBoundingClientRect(), particleDirection);
+  setStatus(
+    `播放中<span class="en">Playing</span> · <em>${pendingMotion}</em> · <em>${previewDeg}°</em>` +
+    ` · size <em>${fmtX(read("size"))}</em> · speed <em>${fmtX(read("speed"))}</em>`,
+  );
+
+  try {
+    await closer.close(modal, { ...currentOptions(), hide: () => {} });
+    setStatus(`完成<span class="en">Done</span> · <em>${pendingMotion}</em> · 可再点预设重试<span class="en">try another preset</span>`);
+  } catch (error) {
+    console.error(error);
+    setStatus(`失败<span class="en">Failed</span> · ${error?.message || error}`);
+  } finally {
+    clearModalChrome();
+    setBusy(false);
+    if (queued) {
+      queued = false;
+      setTimeout(() => { if (!busy) replay(); }, 40);
+    }
+  }
+}
+
+/* --------------------------------------------------------------- assemble */
+
+buildGroups();
+buildOverrideCard();
+groupsEl.append(overrideCard);
+
+for (const { id, label } of listMotions()) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.dataset.motion = id;
+  btn.innerHTML =
+    `<strong>${label}<span class="en">${MOTION_EN[id] || id}</span></strong><span>${id}</span>`;
+  btn.addEventListener("click", () => {
+    setPendingMotion(id);
+    if (id !== "random") syncStyleFromPreset(false);
+    replay();
+  });
+  motionsEl.append(btn);
+  allInputs.push(btn);
+}
+
+for (const { v, t, e, s } of DIRECTIONS) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.dataset.dir = String(v);
+  b.innerHTML = `<b>${t}<span class="en">${e}</span></b><span>${s}</span>`;
+  b.addEventListener("click", () => {
+    applyDirection(v);
+    replay();
+  });
+  dirButtonsEl.append(b);
+  allInputs.push(b);
+}
+
+for (const combo of COMBOS) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.dataset.combo = combo.id;
+  b.innerHTML = `${combo.label}<span class="en">${combo.en}</span>`;
+  b.addEventListener("click", () => {
+    for (const p of ALL_PARAMS) setParam(p.key, p.def);
+    for (const [k, v] of Object.entries(combo.set)) setParam(k, v);
+    comboPresetsEl.querySelectorAll("button").forEach((x) => {
+      x.setAttribute("aria-pressed", String(x.dataset.combo === combo.id));
+    });
+    renderSnippet();
+    // 一键操作与效果/方向按钮保持一致：套用后立即播放，不受「拖滑块松手重播」开关约束
+    replay();
+  });
+  comboPresetsEl.append(b);
+  allInputs.push(b);
+}
+comboPresetsEl.querySelector('[data-combo="standard"]').setAttribute("aria-pressed", "true");
+
+$("resetAll").addEventListener("click", () => {
+  for (const p of ALL_PARAMS) setParam(p.key, p.def);
+  styleOverride = false;
+  const ov = $("overrideOn");
+  if (ov) ov.checked = false;
+  const ovNote = $("overrideNote");
+  if (ovNote) ovNote.textContent = "";
+  for (const p of STYLE_PARAMS) {
+    const preset = MOTION_PRESETS[pendingMotion] || MOTION_PRESETS.drift;
+    setParam(p.key, preset ? preset[p.key] : 0);
+  }
+  applyDirection(PEEL_DEFAULTS.direction);
+  setPendingMotion(PEEL_DEFAULTS.motion);
+  comboPresetsEl.querySelectorAll("button").forEach((x) => {
+    x.setAttribute("aria-pressed", String(x.dataset.combo === "standard"));
+  });
+  renderSnippet();
+  // 同组合按钮：重置后立即用默认参数播一次
+  replay();
+});
+$("copyCfg").addEventListener("click", copySnippet);
+$("copyCfg2").addEventListener("click", copySnippet);
+
+replayBtn.addEventListener("click", () => replay());
+randDirBtn.addEventListener("click", () => {
+  applyDirection("random");
+  replay();
+});
+modal.querySelectorAll("[data-close]").forEach((btn) => {
+  btn.addEventListener("click", () => { closeWith(pendingMotion).catch(console.error); });
+});
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeWith(pendingMotion).catch(console.error);
+});
+
+setPendingMotion(PEEL_DEFAULTS.motion);
+applyDirection(PEEL_DEFAULTS.direction);
+syncStyleFromPreset(false);
+renderSnippet();
+</script>
+</body>
+</html>

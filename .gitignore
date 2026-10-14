@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# npm pack tarballs
+*.tgz
+
+# Intermediate declarations before dts rollup
+.tmp-types/
+temp-types/
+
+# Size report scratch
+scripts/.tmp/
+
+# npm credentials — never commit (npm writes this when you run `npm login` / `npm config set` in the project dir)
+.npmrc
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Local verification scratch
+.verify/
+
+# Agent workspace (项目记忆/分析笔记，仅本地)
+.workbuddy/
+
+# Local trash / scratch backups
+.Trash-*/
+.bak-*/

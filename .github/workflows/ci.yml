@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify dist output
+        run: |
+          test -s dist/index.js
+          test -s dist/index.d.ts
+          head -c 120 dist/index.js | grep -q "Copyright 2026 zhaochen"
+          grep -q "SPDX-License-Identifier" dist/index.d.ts
